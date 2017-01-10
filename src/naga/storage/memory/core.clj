@@ -108,9 +108,9 @@
    For any variable that appears in both sequences, the column number in the
    'from' parameter gets mapped to the column number of the same variable
    in the 'to' parameter."
-  [from :- [s/Any]
-   to :- [Symbol]]
-  (->> to
+  [to :- [s/Any]
+   from :- [Symbol]]
+  (->> from
        (keep-indexed
         (fn [nt vt]
           (seq
@@ -118,7 +118,7 @@
             (fn [nf vf]
               (if (and (st/vartest? vf) (= vt vf))
                 [nf nt]))
-            from))))
+            to))))
        (apply concat)
        (into {})))
 
@@ -155,6 +155,21 @@
             rrow (mem/resolve-pattern graph lookup)]
         (concat lrow rrow))
       {:cols total-cols})))
+
+(s/defn pattern-minus-join :- Results
+  "Takes a partial result, and removes anything that matches on the resolution of a pattern"
+  [graph
+   part :- Results
+   pattern :- EPVPattern]
+  (let [cols (:cols (meta part))
+        pattern->left (matching-vars pattern cols)]
+    ;; iterate over part, lookup pattern
+    (with-meta
+      (for [lrow part
+            :let [lookup (modify-pattern lrow pattern->left pattern)]
+            :when (empty? (mem/resolve-pattern graph lookup))]
+        lrow)
+      {:cols cols})))
 
 (s/defn filter-join
   "Filters down results."
@@ -276,7 +291,7 @@
     (and (keyword? value)
          (= "mem" (namespace value))
          (str/starts-with? (name value) "node-")))
-  
+
   (data-property [_ data]
     :naga/first)
 
